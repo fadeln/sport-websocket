@@ -2,10 +2,11 @@ import { Router } from "express";
 import {
   createMatchSchema,
   listMatchesQuerySchema,
-} from "../validation/matches";
-import { matches } from "../db/schema";
-import { db } from "../db/db";
-import { getMatchStatus } from "../utils/match-status";
+  MATCH_STATUS,
+} from "../validation/matches.js";
+import { matches } from "../db/schema.js";
+import { db } from "../db/db.js";
+import { getMatchStatus } from "../utils/match-status.js";
 import { desc } from "drizzle-orm";
 
 export const matchRouter = Router();
@@ -56,7 +57,7 @@ matchRouter.post("/", async (req, res) => {
     homeScore,
     awayScore,
   } = parsed.data;
-  const status = getMatchStatus(startTime, endTime) || "scheduled";
+  const status = getMatchStatus(startTime, endTime) || MATCH_STATUS.SCHEDULED;
 
   try {
     const [event] = await db
@@ -75,9 +76,9 @@ matchRouter.post("/", async (req, res) => {
 
     res.status(201).json({ data: event });
   } catch (e) {
+    console.error(e);
     res.status(500).json({
       error: "failed to create match",
-      details: e instanceof Error ? e.message : "Unknown error",
     });
   }
 });
