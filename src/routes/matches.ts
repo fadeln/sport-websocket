@@ -75,6 +75,16 @@ matchRouter.post("/", async (req, res) => {
       .returning();
 
     res.status(201).json({ data: event });
+
+    // Broadcast match creation as a non-critical side effect
+    // Wrap in try/catch to ensure failures don't affect the HTTP response
+    if (res.app.locals.broadcastMatchCreated) {
+      try {
+        res.app.locals.broadcastMatchCreated(event);
+      } catch (broadcastError) {
+        console.error("Failed to broadcast match created event:", broadcastError);
+      }
+    }
   } catch (e) {
     console.error(e);
     res.status(500).json({
