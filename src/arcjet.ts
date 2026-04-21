@@ -1,8 +1,16 @@
-import express, { Request, Response, NextFunction } from "express";
-import arcjet, { ArcjetNodeRequest, detectBot, shield, slidingWindow } from "@arcjet/node";
+import express, { type Request, type Response, type NextFunction } from "express";
+import arcjet, { type ArcjetNodeRequest, detectBot, shield, slidingWindow } from "@arcjet/node";
 
 const arcjetKey = process.env.ARCJET_KEY;
-const arcjetMode = process.env.ARCJET_MODE === "DRY_RUN" ? "DRY_RUN" : "LIVE";
+
+// Validate ARCJET_MODE explicitly
+const rawMode = process.env.ARCJET_MODE;
+if (rawMode && rawMode !== "DRY_RUN" && rawMode !== "LIVE") {
+  throw new Error(
+    `Invalid ARCJET_MODE: "${rawMode}". Allowed values are "DRY_RUN" or "LIVE".`
+  );
+}
+const arcjetMode = rawMode === "DRY_RUN" ? "DRY_RUN" : "LIVE";
 
 if (!arcjetKey) throw new Error("ARCJET_KEY environtmen variable is missing");
 
