@@ -8,7 +8,8 @@
     "start": "ts-node src/server.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "dev": "npx tsx --watch src/index.ts"
+    "dev": "npx tsx --watch src/index.ts",
+    "seed": "npx tsx src/seed/seed.ts"
   },
   "keywords": [],
   "author": "",
