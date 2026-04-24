@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../db/db.js";
-import { commentary } from "../db/schema.js";
+import { commentary, matches } from "../db/schema.js";
 import { matchIdParamSchema } from "../validation/matches.js";
 import {
   createCommentarySchema,
@@ -13,7 +13,7 @@ export const commentaryRouter = Router({ mergeParams: true });
 const MAX_LIMIT = 100;
 
 commentaryRouter.get("/", async (req, res) => {
-  const matchIdParsed = matchIdParamSchema.safeParse({ id: req.params.id });
+  const matchIdParsed = matchIdParamSchema.safeParse({ id: (req.params as { id?: string }).id });
   const queryParsed = listCommentaryQuerySchema.safeParse(req.query);
 
   if (!matchIdParsed.success || !queryParsed.success) {
@@ -21,7 +21,7 @@ commentaryRouter.get("/", async (req, res) => {
       error: "Invalid request",
       details: !matchIdParsed.success
         ? matchIdParsed.error.issues
-        : queryParsed.error.issues,
+        : queryParsed.error?.issues,
     });
   }
 
@@ -61,18 +61,29 @@ commentaryRouter.post("/", async (req, res) => {
   }
 
   try {
+    // Verify match exists
+    const [match] = await db
+      .select()
+      .from(matches)
+      .where(eq(matches.id, paramsResult.data.id))
+      .limit(1);
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found." });
+    }
+
     const { minutes, ...rest } = bodyResult.data;
     const [result] = await db
       .insert(commentary)
       .values({
         matchId: paramsResult.data.id,
-        minutes,
+        minute: minutes,
         ...rest,
       })
       .returning();
 
-    if (res.app.locals.broadcastCommentary) {
-      res.app.locals.broadcastCommentary(result.matchId, result);
+    if (res.app.locals.broadcastCommentaryCreated) {
+      res.app.locals.broadcastCommentaryCreated(result);
     }
 
     res.status(201).json({ data: result });

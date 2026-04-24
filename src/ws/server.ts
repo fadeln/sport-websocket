@@ -2,6 +2,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { wsArcjet } from "../arcjet.js";
 
 const matchSubscribers = new Map();
+const socketSubscriptions = new WeakMap<WebSocket, Set<number>>();
 
 function subscribe(matchId: any, socket: any) {
   if (!matchSubscribers.has(matchId)) {
@@ -23,9 +24,13 @@ function unsubscribe(matchId: any, socket: any) {
   }
 }
 
-function cleanupSubscriptions(socket: { subscriptions: any }) {
-  for (const matchId of socket.subscriptions) {
-    unsubscribe(matchId, socket);
+function cleanupSubscriptions(socket: WebSocket) {
+  const subscriptions = socketSubscriptions.get(socket);
+  if (subscriptions) {
+    for (const matchId of subscriptions) {
+      unsubscribe(matchId, socket);
+    }
+    socketSubscriptions.delete(socket);
   }
 }
 
@@ -59,7 +64,7 @@ function broadcastToMatch(matchId: any, payload: any) {
   }
 }
 
-function handleMessage(socket, data) {
+function handleMessage(socket: WebSocket, data: any) {
   let message;
 
   try {
@@ -70,14 +75,19 @@ function handleMessage(socket, data) {
 
   if (message?.type === 'subscribe' && Number.isInteger(message.matchId)) {
     subscribe(message.matchId, socket);
-    socket.subscriptions.add(message.matchId);
+    const subscriptions = socketSubscriptions.get(socket) || new Set<number>();
+    subscriptions.add(message.matchId);
+    socketSubscriptions.set(socket, subscriptions);
     sendJson(socket, { type: "subscribed", matchId: message.matchId });
     return;
   }
 
   if (message?.type === 'unsubscribe' && Number.isInteger(message.matchId)) {
     unsubscribe(message.matchId, socket);
-    socket.subscriptions.delete(message.matchId);
+    const subscriptions = socketSubscriptions.get(socket);
+    if (subscriptions) {
+      subscriptions.delete(message.matchId);
+    }
     sendJson(socket, { type: "unsubscribed", matchId: message.matchId });
   }
 }
@@ -110,7 +120,7 @@ export function attachWebSocketServer(server: any) {
       }
     }
 
-    socket.subscriptions = new Set();
+    socketSubscriptions.set(socket, new Set<number>());
 
     sendJson(socket, { type: "welcome" });
 

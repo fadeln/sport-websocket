@@ -44,12 +44,33 @@ async function loadSeedData() {
 }
 
 async function fetchMatches(limit = 100) {
-    const response = await fetch(`${API_URL}/matches?limit=${limit}`);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch matches: ${response.status}`);
+    const allMatches = [];
+    let offset = 0;
+    const pageSize = limit;
+
+    while (true) {
+        const response = await fetch(`${API_URL}/matches?limit=${pageSize}&offset=${offset}`);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch matches: ${response.status}`);
+        }
+        const payload = await response.json();
+        const matches = Array.isArray(payload.data) ? payload.data : [];
+
+        if (matches.length === 0) {
+            break;
+        }
+
+        allMatches.push(...matches);
+
+        // If we got fewer results than requested, we've reached the end
+        if (matches.length < pageSize) {
+            break;
+        }
+
+        offset += matches.length;
     }
-    const payload = await response.json();
-    return Array.isArray(payload.data) ? payload.data : [];
+
+    return allMatches;
 }
 
 function parseDate(value) {
@@ -130,21 +151,18 @@ async function createMatch(seedMatch) {
 }
 
 async function insertCommentary(matchId, entry) {
-    const payload = {
+    // Build payload with explicit type to allow dynamic property assignment
+    const payload: Record<string, unknown> = {
         message: entry.message ?? "Update",
+        // Required fields with defaults
+        minutes: entry.minute ?? entry.minutes ?? 0,
+        sequence: entry.sequence ?? 0,
+        period: entry.period ?? "1st",
+        eventType: entry.eventType ?? "update",
+        tags: entry.tags ?? [],
     };
-    if (entry.minute !== undefined && entry.minute !== null) {
-        payload.minute = entry.minute;
-    }
-    if (entry.sequence !== undefined && entry.sequence !== null) {
-        payload.sequence = entry.sequence;
-    }
-    if (entry.period !== undefined && entry.period !== null) {
-        payload.period = entry.period;
-    }
-    if (entry.eventType !== undefined && entry.eventType !== null) {
-        payload.eventType = entry.eventType;
-    }
+
+    // Optional fields - only include if present
     if (entry.actor !== undefined && entry.actor !== null) {
         payload.actor = entry.actor;
     }
@@ -154,25 +172,10 @@ async function insertCommentary(matchId, entry) {
     if (entry.metadata !== undefined && entry.metadata !== null) {
         payload.metadata = entry.metadata;
     }
-    if (entry.tags !== undefined && entry.tags !== null) {
-        payload.tags = entry.tags;
-    }
 
     const response = await fetch(`${API_URL}/matches/${matchId}/commentary`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        // NOTE: Avoid sending nulls; the API expects missing optional fields.
-        // body: JSON.stringify({
-        //   minute: entry.minute ?? null,
-        //   sequence: entry.sequence ?? null,
-        //   period: entry.period ?? null,
-        //   eventType: entry.eventType ?? null,
-        //   actor: entry.actor ?? null,
-        //   team: entry.team ?? null,
-        //   message: entry.message ?? "Update",
-        //   metadata: entry.metadata ?? null,
-        //   tags: entry.tags ?? null,
-        // }),
         body: JSON.stringify(payload),
     });
     if (!response.ok) {
